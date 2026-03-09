@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IPSR Research Dashboard V9.2 (Double-Lock)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Papa.parse/5.3.0/papaparse.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Sarabun:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --bg-primary: #0f172a; --bg-card: #1e293b; --text: #f1f5f9; --text-muted: #94a3b8; --accent: #f59e0b; --accent-2: #06b6d4; --border: rgba(255,255,255,0.08); --toggle-bg: #334155; }
+        [data-theme="light"] { --bg-primary: #f0f4f8; --bg-card: #ffffff; --text: #0f172a; --text-muted: #64748b; --accent: #d97706; --accent-2: #0891b2; --border: rgba(0,0,0,0.10); --toggle-bg: #e2e8f0; }
+        body { background: var(--bg-primary); color: var(--text); font-family: 'Sarabun', sans-serif; margin: 0; padding: 20px; transition: background 0.3s; }
+        .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 15px; border-bottom: 1px solid var(--border); }
+        .status-pill { font-size: 11px; padding: 4px 12px; border-radius: 20px; background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid #10b981; }
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .kpi-card { background: var(--bg-card); padding: 20px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .kpi-value { font-size: 26px; font-weight: 700; color: var(--accent); font-family: 'Space Grotesk'; }
+        .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-bottom: 24px; }
+        .card { background: var(--bg-card); border-radius: 12px; padding: 20px; border: 1px solid var(--border); }
+        .chart-wrapper { position: relative; width: 100%; height: 280px; cursor: pointer; }
+        .data-table-section { background: var(--bg-card); border-radius: 12px; padding: 20px; border: 1px solid var(--border); overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th { text-align: left; padding: 12px; background: var(--bg-primary); color: var(--text-muted); cursor: pointer; text-transform: uppercase; font-size: 11px; }
+        td { padding: 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+        .badge { padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; color: white; display: inline-block; }
+        .badge-top1 { background: #ef4444; } .badge-top10 { background: #f59e0b; }
+        .pagination { display: flex; justify-content: center; gap: 8px; margin-top: 25px; }
+        .pagination button { background: var(--bg-card); border: 1px solid var(--border); color: var(--text); padding: 5px 10px; border-radius: 5px; cursor: pointer; }
+        .pagination button.active { background: var(--accent); color: white; border-color: var(--accent); }
+        .filter-bar { background: var(--bg-card); padding: 16px; border-radius: 12px; display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 24px; border: 1px solid var(--border); align-items: flex-end; }
+        select, input { background: var(--input-bg); border: 1px solid var(--border); color: var(--text); padding: 8px; border-radius: 8px; outline: none; }
+    </style>
+</head>
+<body>
+
+    <header class="dashboard-header">
+        <div>
+            <h1>📊 IPSR Dashboard V9.2</h1>
+            <div style="display:flex; align-items:center; margin-top:5px;">
+                <span id="syncStatus" class="status-pill">Loading...</span>
+                <span id="recordCount" style="margin-left:15px; font-size:13px; color:var(--text-muted);">ตรวจสอบข้อมูล...</span>
+            </div>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="syncData()" style="padding: 10px 15px; border-radius: 8px; cursor:pointer; background:var(--accent-2); color:white; border:none; font-weight:bold;">🔄 Sync Sheets</button>
+            <button onclick="toggleTheme()" style="padding: 10px; border-radius: 8px; cursor:pointer;">🌓 Mode</button>
+        </div>
+    </header>
+
+    <section class="filter-bar">
+        <div style="display:flex; flex-direction:column; gap:4px;"><label style="font-size:11px; font-weight:bold;">📅 Year</label><select id="filterYear" onchange="applyFilters()"><option value="All">All Years</option></select></div>
+        <div style="display:flex; flex-direction:column; gap:4px;"><label style="font-size:11px; font-weight:bold;">🌍 Type</label><select id="filterType" onchange="applyFilters()"><option value="All">All Types</option></select></div>
+        <div style="display:flex; flex-direction:column; gap:4px;"><label style="font-size:11px; font-weight:bold;">🏅 Quality</label><select id="filterQ" onchange="applyFilters()"><option value="All">All Qualities</option></select></div>
+        <div style="display:flex; flex-direction:column; gap:4px;"><label style="font-size:11px; font-weight:bold;">🔍 Search</label><input type="text" id="searchInput" placeholder="Search Title/Author..." onkeyup="applyFilters()"></div>
+        <button onclick="resetFilters()" style="padding: 8px 15px; cursor:pointer; border-radius: 8px;">Reset</button>
+    </section>
+
+    <section class="kpi-grid">
+        <div class="kpi-card"><h3>Total Pubs</h3><div id="kpiTotal" class="kpi-value">0</div></div>
+        <div class="kpi-card"><h3>TOP 1%</h3><div id="kpiTop1" class="kpi-value" style="color:#ef4444">0</div></div>
+        <div class="kpi-card"><h3>TOP 10%</h3><div id="kpiTop10" class="kpi-value" style="color:#f59e0b">0</div></div>
+        <div class="kpi-card"><h3>Est. Prizes</h3><div id="kpiPrize" class="kpi-value">฿0</div></div>
+    </section>
+
+    <section class="charts-grid">
+        <div class="card"><h3>Yearly Trend (Click to filter)</h3><div class="chart-wrapper"><canvas id="trendChart"></canvas></div></div>
+        <div class="card"><h3>Quality Rank (Sorted High to Low)</h3><div class="chart-wrapper"><canvas id="qRankChart"></canvas></div></div>
+    </section>
+
+    <section class="data-table-section">
+        <h3>Research Publications Table</h3>
+        <table id="dataTable">
+            <thead>
+                <tr>
+                    <th onclick="sortTable('Year')">Year ↕</th>
+                    <th style="width:25%">Title</th>
+                    <th style="width:30%">Journal Citation</th>
+                    <th>Type</th>
+                    <th>Rank</th>
+                    <th>TOP Rank</th>
+                    <th style="width:15%">Author(s)</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+        <div id="pagination" class="pagination"></div>
+    </section>
+
+    <script>
+        // ลิงก์ที่แชร์จาก Google Sheet
+        const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTKLy2lwfI-8NCQgLk6H0DhL28ktn9BVe-_k5t_sLONV1bCKp5W7kQ4sfoKHmjHfCY-2jq9afexDxJ-/pub?gid=0&single=true&output=csv";
+        
+        let RAW_DATA = [];
+        let filteredData = [];
+        const chartInstances = {};
+        let currentPage = 1;
+        const rowsPerPage = 10;
+        const QUALITY_ORDER = ['Q1', 'Q2', 'Q3', 'Q4', 'TCI1', 'TCI Tier 1', 'TCI2', 'TCI Tier 2', 'TCI3', 'N/A'];
+
+        // 1. ระบบดึงข้อมูลและความยืดหยุ่นของชื่อคอลัมน์
+        function processCSV(data) {
+            return data.map(row => {
+                let d = {};
+                Object.keys(row).forEach(k => {
+                    let key = k.trim().replace(/\s+/g, ' ');
+                    let val = row[k] ? row[k].trim() : "";
+                    
+                    if (key.includes("Year")) d.Year = val;
+                    if (key.includes("ชื่อเรื่อง")) d.Title = val;
+                    if (key.includes("Author") || key.includes("ผู้แต่ง")) d.Author = val;
+                    if (key.includes("International")) d.Type = val;
+                    if (key.includes("ค่า Q") || key.includes("Rank")) d.Rank = (['No', 'no', '', '-', 'nan'].includes(val.toLowerCase())) ? "N/A" : val;
+                    if (key.includes("TOP10")) d.TOP10 = val;
+                    if (key.includes("TOP1") && !key.includes("TOP10")) d.TOP1 = val;
+                    if (key.includes("การอ้างอิง") || key.includes("Citation")) d.Citation = val;
+                    if (key.includes("เบิกค่าตอบแทน") || key.includes("เงินรางวัล")) d.Prize = val;
+                });
+                return d;
+            }).filter(d => d.Year && !isNaN(parseInt(d.Year)));
+        }
+
+        async function syncData() {
+            const status = document.getElementById('syncStatus');
+            status.textContent = "🔄 Syncing with Google Sheets...";
+            
+            Papa.parse(SHEET_URL, {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    if (results.data && results.data.length > 0) {
+                        RAW_DATA = processCSV(results.data);
+                        localStorage.setItem('ipsr_cache', JSON.stringify(RAW_DATA));
+                        status.textContent = "✅ Live Updated: " + new Date().toLocaleTimeString();
+                        initDashboard();
+                    }
+                },
+                error: function() {
+                    status.textContent = "⚠️ Offline Mode (Fetch Blocked by Browser)";
+                    status.style.color = "#f59e0b";
+                }
+            });
+        }
+
+        function initDashboard() {
+            const yrSel = document.getElementById('filterYear');
+            yrSel.innerHTML = '<option value="All">All Years</option>';
+            [...new Set(RAW_DATA.map(d => d.Year))].sort().forEach(y => yrSel.add(new Option(y, y)));
+
+            const tSel = document.getElementById('filterType');
+            tSel.innerHTML = '<option value="All">All Types</option>';
+            [...new Set(RAW_DATA.map(d => d.Type))].filter(x=>x).sort().forEach(t => tSel.add(new Option(t, t)));
+
+            const qSel = document.getElementById('filterQ');
+            qSel.innerHTML = '<option value="All">All Qualities</option>';
+            [...new Set(RAW_DATA.map(d => d.Rank))].sort().forEach(q => qSel.add(new Option(q, q)));
+
+            applyFilters();
+        }
+
+        function applyFilters() {
+            const year = document.getElementById('filterYear').value;
+            const type = document.getElementById('filterType').value;
+            const q = document.getElementById('filterQ').value;
+            const search = document.getElementById('searchInput').value.toLowerCase();
+
+            filteredData = RAW_DATA.filter(d => {
+                return (year === 'All' || d.Year === year) &&
+                       (type === 'All' || d.Type === type) &&
+                       (q === 'All' || d.Rank === q) &&
+                       (d.Title.toLowerCase().includes(search) || (d.Author && d.Author.toLowerCase().includes(search)));
+            });
+
+            currentPage = 1;
+            updateUI();
+        }
+
+        function updateUI() {
+            const total = filteredData.length;
+            const t1 = filteredData.filter(d => String(d.TOP1).toLowerCase() === 'yes').length;
+            const t10 = filteredData.filter(d => String(d.TOP10).toLowerCase() === 'yes').length;
+            const prize = filteredData.reduce((acc, d) => acc + (parseFloat(String(d.Prize).replace(/,/g, '')) || 0), 0);
+
+            document.getElementById('kpiTotal').textContent = total.toLocaleString();
+            document.getElementById('kpiTop1').textContent = t1.toLocaleString();
+            document.getElementById('kpiTop10').textContent = t10.toLocaleString();
+            document.getElementById('kpiPrize').textContent = '฿' + prize.toLocaleString();
+            document.getElementById('recordCount').textContent = `Found ${total} items`;
+
+            createCharts();
+            renderTable();
+        }
+
+        function createCharts() {
+            Object.values(chartInstances).forEach(c => c.destroy());
+            const labels = [...new Set(RAW_DATA.map(d => d.Year))].sort();
+
+            chartInstances.trend = new Chart(document.getElementById('trendChart'), {
+                type: 'bar',
+                data: { labels: labels, datasets: [{ label: 'Total Pubs', data: labels.map(y => filteredData.filter(d => d.Year === y).length), backgroundColor: '#06b6d4' }] },
+                options: { responsive: true, maintainAspectRatio: false, onClick: (e, items) => { if(items.length > 0) { document.getElementById('filterYear').value = labels[items[0].index]; applyFilters(); } } }
+            });
+
+            const qMap = {}; filteredData.forEach(d => qMap[d.Rank] = (qMap[d.Rank] || 0) + 1);
+            const qLabels = Object.keys(qMap).sort((a,b) => (QUALITY_ORDER.indexOf(a)===-1?99:QUALITY_ORDER.indexOf(a)) - (QUALITY_ORDER.indexOf(b)===-1?99:QUALITY_ORDER.indexOf(b)));
+            chartInstances.q = new Chart(document.getElementById('qRankChart'), {
+                type: 'bar',
+                data: { labels: qLabels, datasets: [{ label: 'Papers', data: qLabels.map(l => qMap[l]), backgroundColor: '#a78bfa' }] },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+        function renderTable() {
+            const start = (currentPage - 1) * rowsPerPage;
+            const data = filteredData.slice(start, start + rowsPerPage);
+            document.getElementById('tableBody').innerHTML = data.map(d => `
+                <tr>
+                    <td>${d.Year}</td>
+                    <td style="font-weight:600">${d.Title}</td>
+                    <td style="font-size:11px; color:var(--text-muted)">${d.Citation || '-'}</td>
+                    <td>${d.Type}</td>
+                    <td><b>${d.Rank}</b></td>
+                    <td>
+                        ${String(d.TOP1).toLowerCase() === 'yes' ? '<span class="badge badge-top1">TOP 1</span>' : ''}
+                        ${String(d.TOP10).toLowerCase() === 'yes' ? '<span class="badge badge-top10">TOP 10</span>' : ''}
+                    </td>
+                    <td style="font-size:11px">${d.Author ? d.Author.replace(/\n/g, '<br>') : '-'}</td>
+                </tr>
+            `).join('');
+            
+            const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+            let pgHtml = '';
+            for (let i = 1; i <= Math.min(totalPages, 15); i++) {
+                pgHtml += `<button class="${i === currentPage ? 'active' : ''}" onclick="currentPage=${i};renderTable();">${i}</button>`;
+            }
+            document.getElementById('pagination').innerHTML = pgHtml;
+        }
+
+        function toggleTheme() { document.body.setAttribute('data-theme', document.body.getAttribute('data-theme') === 'light' ? '' : 'light'); }
+        function resetFilters() { document.querySelectorAll('select').forEach(s => s.selectedIndex = 0); document.getElementById('searchInput').value = ''; applyFilters(); }
+        function sortTable(col) { filteredData.sort((a,b) => a[col] > b[col] ? 1 : -1); renderTable(); }
+
+        window.onload = () => {
+            const cache = localStorage.getItem('ipsr_cache');
+            if (cache) {
+                RAW_DATA = JSON.parse(cache);
+                initDashboard();
+            }
+            syncData(); // ซิงค์ต่อเพื่ออัปเดตข้อมูลล่าสุด
+        };
+    </script>
+</body>
+</html>
